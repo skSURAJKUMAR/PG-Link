@@ -1,0 +1,125 @@
+USE [DIGISALES]
+GO
+/****** Object:  StoredProcedure [dbo].[PGLINKDATA]    Script Date: 11/2/2023 12:09:35 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		<Author,,Name>
+-- Create date: <Create Date,,>
+-- Description:	<Description,,>
+-- =============================================
+ALTER PROCEDURE [dbo].[PGLINKDATA]
+  @producttype char(1),
+  @fromdate varchar(50),
+  @todate varchar(50)
+	
+AS
+BEGIN
+	 if(@producttype='1')
+	 begin
+	 select
+
+FORMAT ( GETDATE(), 'yyMMddHHmms')+prod.PROPOSAL_NUMBER as AppTransactionID,
+'DQ' as ApplicationName,
+prod.proposal_number as CustomerID,
+
+prod.PRO_FULL_NAME+' '+prod.PRO_LASTNAME as  CustomerName,
+
+iif(prod.PRO_EMAIL!='',prod.PRO_EMAIL,'test@sudlife.in') as  EmailAddress ,
+
+
+prod.PRO_CONTACT_NO as  Phonenumber,
+
+'01' as PaymentTypeCode,
+'NB'as PaymentType,
+'02' as RecordtypeCode,
+ 'PolicyNo' as Recordtype,
+ prod.proposal_number as PolicyApplicationNo,
+
+ pay.transaction_amount as TrxnAmount,
+'' as MandateStartDate,
+'' as MandateEndDate,
+
+Json_value (quote.QUOTE_DETAILS ,'$.loan_duration_in') as Frequency,
+
+'' as MaxMandateAmount,
+
+
+'Payment' as TrxnType,
+
+convert(date,dateadd(mi,000,pay.PAYMENT_DATE)) as TransactionDate,
+
+prod.PLAN_NAME as  AdditionalField8,
+
+'Group' as ProductType
+
+from T_PROPOSAL_DETAILS prod
+left join T_PAYMENT_DETAILS pay on pay.PROPOSAL_NUMBER=prod.PROPOSAL_NUMBER 
+left join T_QUOTE_DETAILS quote on quote.QUOTE_NUMBER=prod.QUOTE_NUMBER
+where prod.POLICY_STATUS_DESC='submitted' and dateadd(mi,330,SUBMITTED_DATE) between @fromdate and @todate
+and prod.PRODUCT_CODE='1'
+and pay.PAYMENT_MODE='PG Link'
+and prod.JOURNEY_STAGE='Submitted'
+--and prod.PROPOSAL_NUMBER=14326341
+
+
+
+
+	 end
+
+	 if(@producttype='2')
+	 begin
+	 select
+
+FORMAT ( GETDATE(), 'yyyyMMddHHmm')+prod.PROPOSAL_NUMBER as AppTransactionID,
+'DQ' as ApplicationName,
+prod.proposal_number as CustomerID,
+
+case prod.proposer_type when 'LA_PROPOSER_PAYOR_SAME' then prod.INS_FULL_NAME +' '+prod.ins_lastname 
+when 'PROPOSER_PAYER_SAME' then prod.PRO_FULL_NAME +' '+prod.pro_lastname  when 'LA_PROPOSER_PAYOR_DIFF' then json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_firstname')+' '+json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_lastname')  else json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_firstname')+' '+json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_lastname') end as  CustomerName,
+
+iif((case prod.proposer_type when 'LA_PROPOSER_PAYOR_SAME' then prod.ins_email when 'PROPOSER_PAYER_SAME' then prod.pro_email when 'LA_PROPOSER_PAYOR_DIFF' then json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_email') else json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_email') end )!='',
+(case prod.proposer_type when 'LA_PROPOSER_PAYOR_SAME' then prod.ins_email when 'PROPOSER_PAYER_SAME' then prod.pro_email when 'LA_PROPOSER_PAYOR_DIFF' then json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_email') else json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_email') end ),'test@sudlife.in') as  EmailAddress ,
+
+
+case prod.proposer_type when 'LA_PROPOSER_PAYOR_SAME' then prod.ins_contact_no 
+when 'PROPOSER_PAYER_SAME' then prod.pro_contact_no when 'LA_PROPOSER_PAYOR_DIFF' then json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_mobile') else json_value(prod.PAY_PERSONNEL_DETAILS,'$.pay_mobile') end as  Phonenumber,
+
+'01' as PaymentTypeCode,
+'NB'as PaymentType,
+'02' as RecordtypeCode,
+ 'PolicyNo' as Recordtype,
+ prod.proposal_number as PolicyApplicationNo,
+
+ pay.transaction_amount as TrxnAmount,
+'' as MandateStartDate,
+'' as MandateEndDate,
+
+json_value(prod.PLAN_DETAILS,'$.frequency') as Frequency,
+
+json_value(prod.BANK_DETAILS,'$.mandate_amount') as MaxMandateAmount,
+
+
+'Payment' as TrxnType,
+
+convert(date,dateadd(mi,000,pay.PAYMENT_DATE)) as TransactionDate,
+
+prod.PLAN_NAME as  AdditionalField8,
+
+'Retail' as ProductType
+
+from T_PROPOSAL_DETAILS prod
+left join T_PAYMENT_DETAILS pay on pay.PROPOSAL_NUMBER=prod.PROPOSAL_NUMBER 
+where prod.POLICY_STATUS_DESC='submitted' and dateadd(mi,330,SUBMITTED_DATE) between @fromdate and @todate
+and ISJSON(prod.PLAN_DETAILS)=1 
+and ISJSON(prod.BANK_DETAILS)=1 
+and ISJSON(prod.PAY_PERSONNEL_DETAILS)=1 
+and prod.PRODUCT_CODE!='1'
+and pay.PAYMENT_MODE='PG Link'
+and prod.JOURNEY_STAGE='Submitted'
+--and prod.PROPOSAL_NUMBER='14326341'
+	 end
+
+END
